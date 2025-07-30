@@ -5,11 +5,14 @@
   @include mixins.flex(column);
   gap: 2rem;
   height: 100%;
+  position: relative;
 
   &__list {
     padding: 0;
     margin: 0;
     flex-grow: 1;
+    min-height: 200px;
+    position: relative;
   }
 
   &__item {
@@ -27,13 +30,39 @@
       background-color: $primary;
       color: white;
       margin-right: 1rem;
+      flex-shrink: 0;
     }
 
     &-delete {
       @include mixins.icon(2rem, 'trash');
       @include mixins.link($hover, white);
       opacity: 0.5;
-      margin-left: 4rem;
+      margin-left: 88px;
     }
   }
+
+  &__button {
+    align-self: flex-end;
+    min-width: 200px;
+    padding: 1rem 2rem;
+
+    &[disabled] {
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+  }
+  &__empty {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    margin-top: -40px;
+    text-align: center;
+  
+    &-text {
+      font-size: 30px;
+      color: $secondary;
+      margin-top: 1rem;
+      opacity: 0.5;
+    }
+  }  
 }
