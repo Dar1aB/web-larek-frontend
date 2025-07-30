@@ -50,6 +50,7 @@ npm run build
 ```
 yarn build
 ```
+
 ## СЛОЙ MODEL
 Модели описаны в src/types/index.ts
 
