@@ -58,8 +58,11 @@ yarn build
 - `IProductItem` — описывает формат данных, приходящих с сервера  
 Cодержит поля: id, title, price, category, image + опциональные description и inBasket  
 
-- `IOrder` — описывает формат данных, уходящих на сервер при оформлении заказа  
-Содержит поля: payment, email, phone, address, items и total  
+- `IOrder` — описывает формат данных заказа
+Содержит поля: payment, email, phone, address  
+
+- `IOrderSubmit` — описывает формат данных заказа, отправляющихся на сервер, расширяет IOrder  
+Содержит поля: items[], total + поля IOrder  
 
 - `IAppStatus` — основной интерфейс состояния приложения. Отвечает за хранение данных каталога, корзины и заказа и управляет состоянием приложения.  
   Содержит исключительно методы:  
@@ -68,13 +71,11 @@ Cодержит поля: id, title, price, category, image + опциональ
   getCatalog(): IProductItem[];  
   getBasket(): IProductItem[];  
   getOrder(): IOrder;  
+  getPaidItems(): IProductItem[]; - оставляет исключительно платные товары  
 
   - методы изменения состояния  
   setCatalog(items: IProductItem[]): void;  
-  setOrderFormField<K extends keyof IOrder>(field: K, value: IOrder[K]): void;  
-
-  - подготовка заказа к отправки  
-  prepareOrder(): IOrder;  
+  setOrderFormField<K extends keyof IOrder>(field: K, value: IOrder[K]): void;   
 
   - проверка состояния корзины  
   hasNoItems(): boolean;  
@@ -85,6 +86,9 @@ Cодержит поля: id, title, price, category, image + опциональ
   delFromBasket(id: string): void;  
   clearBasket(): void;  
   getTotal(): number;  
+
+- метод валидации полей форм    
+  validateOrder(form: 'payment' | 'contacts'): {isValid: boolean, errors: string};     
 
 ### ОСНОВНЫЕ ИНТЕРФЕЙСЫ ДАННЫХ
 
@@ -103,7 +107,7 @@ Cодержит поля: id, title, price, category, image + опциональ
 
   методы:  
   renderModalOpen(content: HTMLElement): void - открытие модального окна вместе с его содержимым (content)  
-  modalClose(): void - закрытие модального окна  
+  modalClose(): void - закрытие модального окна   
 
 - `ICard` — интерфейс для данных отображения карточки товара  
   title: string - название товара  
@@ -113,19 +117,33 @@ Cодержит поля: id, title, price, category, image + опциональ
   description: string | null - описание товара (может отсутствовать)  
   inBasket: boolean - флаг наличия товара в корзине  
 
-- `IOrderForm` — интерфейс для данных в формах заказа  
-  payment: 'card' | 'cash' - выбранный способ оплаты  
-  address: string - введенный адрес  
-  email: string - введенный емэйл  
-  phone: string - введенный номер телефона  
+- `IOrderForm` — главный интерфейс для состояния форм заказа  
   isValid: boolean - флаг валидности формы  
   errors: string - текст ошибок валидации  
 
+- `IPaymentForm` — интерфейс для состояния формы с выбором оплаты заказа, расширяет IOrderForm   
+  payment: 'card' | 'cash' - способ оплаты  
+  address: string - значение адреса  
+
+- `IContactsForm` — интерфейс для состояния формы с указанием контактов, расширяет IOrderForm  
+  email: string - значение емейл  
+  phone: string - значение телефона   
+
+- `ISuccess` — интерфейс для состояния модалки успешного заказа  
+  total: number - итоговая сумма списания  
+
 - `IBasket` — интерфейс состояния корзины  
-  items: IProductItem[] - массив с товарами в корзине  
+  items: HTMLElement[] - массив с товарами в корзине  
   total: number - итоговая сумма заказа  
   isEmpty: boolean - флаг пустой корзины  
   hasOnlyFreeItems: boolean - флаг наличия только бесценных товаров в корзине  
+
+- `IBasketItem` — интерфейс для каждого элемента в списке корзины  
+  index: number - порядковый номер элемента корзины  
+  title: string - название элемента корзины  
+  price: number | null - цена элемента корзины  
+  id: string - id элемента корзины  
+
 
 ## СЛОЙ VIEW  
 ### БАЗОВНЫЕ КЛАССЫ  
@@ -157,18 +175,14 @@ Cодержит поля: id, title, price, category, image + опциональ
     payment: 'card',  
     email: '',  
     phone: '',  
-    address: '',  
-    items: [],  
-    total: 0  
+    address: ''  
   } - данные текущего заказа  
 
   методы получения данных  
   getCatalog(): IProductItem[] - копии каталога  
   getBasket(): IProductItem[] - копии корзины  
-  getOrder(): IOrder {  
-    this.prepareOrder();  
-    return {...this._order}  
-  } - копии данных заказа, который будет отправляться на сервер, подготовленного перед этим методом prepareOrder()  
+  getOrder(): IOrder - копии данных текущего заказа  
+  getPaidItems(): IProductItem[] - только платных заказов  
 
   методы установки значений  
   setCatalog(items: IProductItem[]) - каталога товаров  
@@ -178,37 +192,27 @@ Cодержит поля: id, title, price, category, image + опциональ
   hasNoItems(): boolean   
   hasOnlyFreeItems(): boolean   
 
-  метод подготовки заказа к отправки на сервер (в формате IOrder) + проверка и вывод в консоль ошибки при наличии только бесценного товара  
-  prepareOrder(): IOrder {  
-    if (this.hasOnlyFreeItems()) {  
-      console.log('Ошибка: в корзине сейчас только бесценный товар');  
-    }  
-    this._updateOrderData();  
-    return this._order;  
-  };  
-
   методы для работы с корзиной  
   addToBasket(item: IProductItem): void - добавляет товар в корзину  
   delFromBasket(id: string): void - удаляет товар из корзины  
   clearBasket(): void - очищает корзину  
-  getTotal(): number - получает итоговую сумму  
+  getTotal(): number - получает итоговую сумму из только платных товаров  
 
-  приватный метод класса, используется для обновления заказа и итоговой суммы  
-  private _updateOrderData(): void {  
-    this._order.items = this.hasOnlyFreeItems() ? [] : this._basket.filter(item => item.price !== null).map(item => item.id);  
-    this._order.total = this.getTotal();  
-  }
+  метод валидации полей форм    
+  validateOrder(form: 'payment' | 'contacts'): {isValid: boolean, errors: string}; - проверяет поля формы на заполненность и возвращает статус валидности и ошибки  
 
 - `Page` — класс главной страницы. Имплементирует интерфейс IPage  
   protected _gallery: HTMLElement - контейнер для каталога карточек  
   protected _counter: HTMLElement - счетчик корзины  
-  protected _modals: HTMLElement[] - массив модалок  
+  protected _modal: Modal - модальное окно  
   protected _wrapper: HTMLElement - контейнер-обертка для страницы  
-  protected _activeModal: HTMLElement | null = null - текущее активная модалка (может и отсутствовать)  
 
   constructor(container: HTMLElement, protected events: IEvents) {  
     super(container); - вызывает родительский контейнер с переданным в конструктор класса document.body, а в последующих компонентах подготовленными шаблонами  
     ...  
+    инициализация модального окна  
+    const modalContainer = ensureElement<HTMLElement>('#modal-container',   this.container) - содержимое модалки  
+    this._modal = new Modal(modalContainer, events) - новый экземпляр модалки с конкретным содержимым  
   }  
   
   сеттеры, устанавливающие каталог, счетчик корзины и флаг блокировки прокрутки страницы  
@@ -217,12 +221,30 @@ Cодержит поля: id, title, price, category, image + опциональ
   set locked(value: boolean)  
 
   методы  
-  renderModalOpen(element: HTMLElement): void - открывает модалку с содержимым, принимает контент модалки  
-  modalClose(): void - закрывает модалку  
+  renderModalOpen(content: HTMLElement): void - ренедерит модалку с переданным контентом, и открывает ее    
+  modalClose(): void - закрывает модалку   
 
   render(): HTMLElement {  
     return this.container - реализация абстрактного метода родителя, рендерит страницу   
   }  
+
+- `Modal` — класс для модалок. На основе этого компонента контролируется состояние модалок и изменение их контента  
+  protected _content: HTMLElement - контент модалки  
+  protected _closeBtn: HTMLButtonElement - кнопкка закрытия модалки  
+
+  сеттер для установки значения контента модалки  
+  set content(value: HTMLElement)  
+
+  методы открытия/закрытия модалки    
+  open(): void   
+  close(): void   
+
+  render(data?: {content?: HTMLElement}): HTMLElement {  
+    if (data?.content) {  
+      this.content = data.content;  
+    }  
+    return this.container;  
+  } - рендеринг модалки  
 
 - `Card` — класс карточки товара. Имплементирует интерфейсы IProductItem и ICard. На основе этого компонента создаются карточки для каталога и карточки-превью  
   protected _title: HTMLElement - элемент названия товара  
@@ -254,36 +276,86 @@ Cодержит поля: id, title, price, category, image + опциональ
     return this.container;  
   } - рендеринг карточки   
 
-- `OrderForm` — класс для форм товара. Имплементирует интерфейсы IOrder и IOrderForm. На основе этого компонента создаются адресная и контактная формы с соответствующими свойствами  
-  protected _paymentBtns: HTMLButtonElement[] - кнопки выбора способа облаты  
-  protected _addressInput: HTMLInputElement - поле ввода адреса  
-  protected _emailInput: HTMLInputElement - поле ввода емэйл  
-  protected _phoneInput: HTMLInputElement - поле ввода телефона  
+- `OrderForm` — главный класс для форм заказа. Имплементирует интерфейс IOrderForm. На основе этого класса создаются классы для адресной и контактной формы с соответствующими свойствами    
   protected _submitBtn: HTMLButtonElement - кнопка перехода на следующую форму/ отправки заказа на сервер  
   protected _errors: HTMLElement - элемент отображения ошибок валидации формы  
 
-  constructor(container: HTMLElement, protected events: IEvents, protected formType: 'payment' | 'contacts' = 'payment') {...} - в контейнер также   
-  передается флаг типа формы: адресной или контактной  
-
-  сеттеры для всех свойств формы  
-  set payment(value: 'card' | 'cash')  
-  set address(value: string)   
-  set email(value: string)   
-  set phone(value: string)   
+  сеттеры для состояния валидности формы и ошибок  
   set isValid(value: boolean)  
   set errors(value: string)  
 
-  render(data?: Partial<IOrder & IOrderForm>): HTMLElement {  
+  защищенный метод, подготовлен для последующей различной реализации в дочерних классах форм  
+  protected onSubmit(): void  
+
+  render(data?: Partial<IOrderForm>): HTMLElement {  
+    if (data) {   
+      if (data.isValid !== undefined) this.isValid = data.isValid;  
+      if (data.errors !== undefined) this.errors = data.errors;  
+    }  
+    return this.container;  
+  } - рендеринг состояния и ошибок форм  
+
+- `PaymentForm` — класс для формы с оплатой и адресом заказа. Расширяет класс OrderForm.  
+  protected _addressInput: HTMLInputElement - поле с адресом  
+  protected _paymentBtns: HTMLButtonElement[] - кнопки с выбором оплаты  
+
+  сеттеры способа оплаты и адреса  
+  set payment(value: 'card' | 'cash')  
+  set address(value: string)  
+
+  защищенный метод родителя, с инициализацией события перехода на контактную форму   
+  protected onSubmit(): void {  
+    this.events.emit('paymentForm:submit');  
+  }  
+
+  render(data?: Partial<IPaymentForm>): HTMLElement {  
     if (data) {  
-      if (data.payment !== undefined) this.payment = data.payment;  
+      if (data.payment) this.payment = data.payment;  
       if (data.address) this.address = data.address;  
+      if (data.isValid !== undefined) this.isValid = data.isValid;  
+      if (data.errors !== undefined) this.errors = data.errors;  
+    }  
+    return this.container;  
+  } - рендеринг формы с оплатой  
+
+- `ContactsForm` — класс для формы контактными данными заказа. Расширяет класс OrderForm.  
+  protected _emailInput: HTMLInputElement - поле с емейл  
+  protected _phoneInput: HTMLInputElement - поле с телефоном  
+
+  сеттеры емейл и телефона  
+  set email(value: string)  
+  set phone(value: string)  
+
+  защищенный метод родителя, с инициализацией события отправки готового заказа на сервер  
+  protected onSubmit(): void {  
+    this.events.emit('order:submit');  
+  }  
+
+  render(data?: Partial<IContactsForm>): HTMLElement {  
+    if (data) {  
       if (data.email) this.email = data.email;  
       if (data.phone) this.phone = data.phone;  
       if (data.isValid !== undefined) this.isValid = data.isValid;  
-      if (data.errors) this.errors = data.errors;  
+      if (data.errors !== undefined) this.errors = data.errors;  
     }  
     return this.container;  
-  } - рендеринг формы  
+  } - рендеринг формы с контактами  
+
+- `Success` — класс для модалки успешного состояния после оформления и отаправки заказа. Имплементирует интерфейс ISuccess.  
+  protected _description: HTMLElement - описание с суммой итогового списания  
+  protected _closeBtn: HTMLButtonElement - кнопка закрытия модалки  
+
+  сеттер для установки описания с итоговой суммой заказа  
+  set total(value: number) {  
+    this._description.textContent = `Списано ${value} синапсов`;  
+  }  
+
+  render(data?: Partial<ISuccess>): HTMLElement {  
+    if (data?.total !== undefined) {  
+      this.total = data.total;  
+    }  
+    return this.container;  
+  } - рендеринг описания   
 
 - `Basket` — класс для корзины товаров. Имплементирует интерфейс IBasket.  
   protected _list: HTMLElement - список товаров корзины  
@@ -292,7 +364,7 @@ Cодержит поля: id, title, price, category, image + опциональ
   protected _empty: HTMLElement - элемент пустой корзины  
 
   сеттеры для установки  
-  set items(items: IProductItem[]) - товаров типа IProductItem в корзине  
+  set items(items: HTMLElement[]) - товаров типа HTMLElement в корзине   
   set total(total: number) - итоговой суммы  
   set isEmpty(value: boolean) - состояния пустой корзины  
   set hasOnlyFreeItems(value: boolean) - наличия только бесценных товаров в корзине  
@@ -306,6 +378,27 @@ Cодержит поля: id, title, price, category, image + опциональ
     }  
     return this.container;  
   } рендеринг корзины  
+
+- `BasketItem` — класс для каждого элемента корзины. Имплементирует интерфейс IBasketItem.  
+  protected _index: HTMLElement - индекс товара в корзине   
+  protected _title: HTMLElement - название товара в корзине   
+  protected _price: HTMLElement - цена товара в корзине  
+  protected _delBtn: HTMLButtonElement - кнопка-корзинка для удаления товара из корзины  
+
+  сеттеры для свойств класса  
+  set index(value: number)  
+  set title(value: string)  
+  set price(value: number | null)  
+
+  render(data?: Partial<IBasketItem>): HTMLElement {  
+      if (data) {  
+        if (data.index !== undefined) this.index = data.index;  
+        if (data.title) this.title = data.title;  
+        if (data.price !== undefined) this.price = data.price;  
+        if (data.id) this._delBtn.dataset.id = data.id;  
+      }  
+      return this.container;  
+  } - рендеринг товара в корзине  
 
 ### БРОКЕР СОБЫТИЙ  
 - `EventEmitter` — базовый класс для работы с событиями. Имплементирует интерфейс IEvents.  
@@ -336,6 +429,10 @@ Cодержит поля: id, title, price, category, image + опциональ
 ## СЛОЙ PRESENTER   
 код презентера не выделен в отдельный класс, а размещен в основном файле приложения src/index.ts  
 
+- `modalPresenter` — обрабатывает состояние модалок.  
+'modal:open' - открывает модалку и запрещает прокрутку страницы  
+'modal:close' - закрывает модалку и разрешает прокрутку страницы  
+
 - `catalogPresenter` — обрабатывает события каталога товаров и карточки-превью.  
 'catalog:changed' - обновляет отображение каталога  
 'card:select' - открывает модалку с превью-карточкой  
@@ -349,12 +446,8 @@ Cодержит поля: id, title, price, category, image + опциональ
 - `orderPresenter` — обрабатывает события заказа.  
 'order:open' - открывает модалку адресной формы  
 'paymentForm:submit' - открывает модалку контактной формы  
-'order:submit' - отправляет пост-запрос с подготовленным заказом на сервер  
-'/^order\..*change/' - обновляет состояние полей форм  
-
-- `modalPresenter` — обрабатывает состояние модалок.  
-'modal:open' - открывает модалку и запрещает прокрутку страницы  
-'modal:close' - закрывает модалку и разрешает прокрутку страницы  
+'order:submit' - отправляет пост-запрос с подготовленным заказом типа IOrderSubmit на сервер  
+'/^order\..*change/' - обновляет состояние полей форм   
 
 ### СОБЫТИЙНАЯ МОДЕЛЬ  
 пример взаимодействия в приложении:  
@@ -362,5 +455,4 @@ Cодержит поля: id, title, price, category, image + опциональ
 - `2.` Класс Card инициирует событие добавления в корзину 'basket:add' с данными из карточки  
 - `3.` Презентер basketPresenter обрабатывает это событие и вызывает appData.addToBasket(item: IProductItem)  
 - `4.` AppStatus добавляет конкретный товар в корзину и инициирует событие 'basket:changed'  
-- `5.` basketPresenter обрабатывает это событие и получает обновленную корзину с помощью appData.getBasket(), а также обновляет вью класс Basket  
-- `6.` Класс Basket рендерится с новыми данными  
+- `5.` basketPresenter обрабатывает это событие, создает экзепляры BasketItem для каждого товара и обновляет вью класс Basket и счетчик в Page   

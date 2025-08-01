@@ -1,6 +1,5 @@
-import { IProductItem } from "../../types";
 import { IBasket } from "../../types/components/IBasket";
-import { createElement, ensureElement } from "../../utils/utils";
+import { ensureElement } from "../../utils/utils";
 import { Component } from "../base/component";
 import { IEvents } from "../base/events";
 
@@ -21,49 +20,11 @@ export class Basket extends Component<IBasket> {
     this._button.addEventListener('click', () => {
       events.emit('order:open', {});
     });
-
-    this._list.addEventListener('click', (evt) => {
-      const target = evt.target as HTMLElement;
-      const delBtn = target.closest<HTMLButtonElement>('.basket__item-delete');
-      if(delBtn?.dataset.id) {
-        events.emit('basket:remove', {id: delBtn.dataset.id});
-      }
-    })
   }
 
-  set items(items: IProductItem[]) {
-    if (!items.length) {
-      this._list.replaceChildren();
-      this.isEmpty = true;
-      this.hasOnlyFreeItems = true;
-    } else if (items.some(item => item.price === null)) {
-      this.hasOnlyFreeItems = true;
-    }
-    this.isEmpty = false;
-    const elements = items.map((item, index) => 
-      createElement<HTMLElement>('li', {
-        className: 'basket__item card card_compact'
-      }, [
-        createElement('span', {
-          className: 'basket__item-index',
-          textContent: (index + 1).toString()
-        }),
-        createElement('span', {
-          className: 'card__title',
-          textContent: item.title
-        }),
-        createElement('span', {
-          className: 'card__price',
-          textContent: `${item.price || 0} синапсов`
-        }),
-        createElement('button', {
-          className: 'basket__item-delete',
-          dataset: {id: item.id},
-          ariaLabel: 'удалить'
-        })
-      ])
-    );
-    this._list.replaceChildren(...elements);
+  set items(items: HTMLElement[]) {
+    this._list.replaceChildren(...items);
+    this.isEmpty = items.length === 0;
   }
 
   set total(total: number) {

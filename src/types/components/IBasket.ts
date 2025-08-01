@@ -1,7 +1,5 @@
-import { IProductItem } from "..";
-
 export interface IBasket {
-  items: IProductItem[];
+  items: HTMLElement[];
   total: number;
   isEmpty: boolean;
   hasOnlyFreeItems: boolean;

@@ -1,30 +1,24 @@
 import { IPage } from "../types/components/IPage";
-import { ensureAllElements, ensureElement } from "../utils/utils";
+import { ensureElement } from "../utils/utils";
 import { Component } from "./base/component";
 import { IEvents } from "./base/events";
+import { Modal } from "./Modal";
 
 export class Page extends Component<IPage> {
   protected _gallery: HTMLElement;
   protected _counter: HTMLElement;
-  protected _modals: HTMLElement[];
+  protected _modal: Modal;
   protected _wrapper: HTMLElement;
-  protected _activeModal: HTMLElement | null = null;
 
   constructor(container: HTMLElement, protected events: IEvents) {
     super(container);
 
     this._gallery = ensureElement<HTMLElement>('.gallery', this.container);
     this._counter = ensureElement<HTMLElement>('.header__basket-counter', this.container);
-    this._modals = ensureAllElements<HTMLElement>('.modal', this.container);
     this._wrapper = ensureElement<HTMLElement>('.page__wrapper', this.container);
-    this._modals.forEach(modal => modal.classList.remove('modal_active'));
 
-    this.container.addEventListener('click', (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (target.closest('.modal__close') || target.classList.contains('modal_active')) {
-        this.modalClose();
-      }
-    })
+    const modalContainer = ensureElement<HTMLElement>('#modal-container', this.container);
+    this._modal = new Modal(modalContainer, events);
 
     ensureElement<HTMLElement>('.header__basket', this.container).addEventListener('click', () => {
       events.emit('basket:open');
@@ -44,23 +38,12 @@ export class Page extends Component<IPage> {
   }
 
   renderModalOpen(content: HTMLElement): void {
-    this.modalClose();
-    const currentModal = this._modals.find(modal => !modal.classList.contains('modal_active'));
-    if (currentModal) {
-      const modalContent = ensureElement<HTMLElement>('.modal__content', currentModal);
-      modalContent.replaceChildren(content);
-      currentModal.classList.add('modal_active');
-      this._activeModal = currentModal;
-      this.locked = true;
-    }
+    this._modal.render({content});
+    this._modal.open();
   }
 
   modalClose(): void {
-    if(this._activeModal) {
-      this._activeModal.classList.remove('modal_active');
-      this._activeModal = null;
-      this.locked = false;
-    }
+    this._modal.close();
   }
 
   render(): HTMLElement {

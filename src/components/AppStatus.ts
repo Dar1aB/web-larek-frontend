@@ -8,9 +8,7 @@ export class AppStatus implements IAppStatus {
     payment: 'card',
     email: '',
     phone: '',
-    address: '',
-    items: [],
-    total: 0
+    address: ''
   };
 
   constructor(protected events: IEvents) {}
@@ -24,8 +22,15 @@ export class AppStatus implements IAppStatus {
   }
 
   getOrder(): IOrder {
-    this.prepareOrder();
-    return {...this._order}
+    return {...this._order};
+  }
+
+  getPaidItems(): IProductItem[] {
+    return this._basket.filter(item => item.price !== null);
+  }
+
+  hasOnlyFreeItems(): boolean {
+    return this._basket.every(item => item.price === null);
   }
 
   setCatalog(items: IProductItem[]) {
@@ -33,20 +38,8 @@ export class AppStatus implements IAppStatus {
     this.events.emit('catalog:changed', this._catalog);
   }
 
-  prepareOrder(): IOrder {
-    if (this.hasOnlyFreeItems()) {
-      console.log('Ошибка: в корзине сейчас только бесценный товар');
-    }
-    this._updateOrderData();
-    return this._order;
-  };
-
   hasNoItems(): boolean {
     return this._basket.length === 0;
-  }
-
-  hasOnlyFreeItems(): boolean {
-    return this._basket.every(item => item.price === null);
   }
 
   setOrderFormField<K extends keyof IOrder>(field: K, value: IOrder[K]): void {
@@ -58,30 +51,54 @@ export class AppStatus implements IAppStatus {
     if (!catalogElement) return;
     if (!this._basket.some(i => i.id === item.id)) {
       this._basket.push({...catalogElement});
-      this._order.total = this.getTotal();
       this.events.emit('basket:changed')
     }
   };
   delFromBasket(id: string): void {
     this._basket = this._basket.filter(item => item.id !== id);
     this.events.emit('basket:changed');
-    this._order.total = this.getTotal();
   };
   clearBasket(): void {
     this._basket = [];
-    this._order.total = this.getTotal();
     this.events.emit('basket:changed')
   };
 
   getTotal(): number {
-    if (this.hasOnlyFreeItems()) {
-      return 0;
-    }
     return this._basket.filter(item => item.price !== null).reduce((sum, item) => sum + (item.price || 0), 0);
   };
 
-  private _updateOrderData(): void {
-    this._order.items = this.hasOnlyFreeItems() ? [] : this._basket.filter(item => item.price !== null).map(item => item.id);
-    this._order.total = this.getTotal();
+  validateOrder(form: 'payment' | 'contacts'): {isValid: boolean, errors: string} {
+    const data = this.getOrder();
+    if (form === 'payment') {
+      const isValid = Boolean(data.address);
+      return {
+        isValid,
+        errors: isValid ? '': 'Необходимо указать адрес'
+      }
+    }
+    if (form === 'contacts') {
+      const emailValid = Boolean(data.email);
+      const phoneValid = Boolean(data.phone);
+      if (!emailValid && !phoneValid) {
+        return {
+          isValid: false,
+          errors: 'Необходимо указать email и телефон'
+        }
+      }
+      if (!emailValid) {
+        return {
+          isValid: false,
+          errors: 'Необходимо указать email'
+        }
+      }
+      if (!phoneValid) {
+        return {
+          isValid: false,
+          errors: 'Необходимо указать телефон'
+        }
+      }
+      return {isValid: true, errors: ''}
+    }
+    return {isValid: false, errors: ''}
   }
 }

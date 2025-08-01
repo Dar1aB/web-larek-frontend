@@ -13,6 +13,9 @@ export interface IOrder {
   email: string;
   phone: string;
   address: string;
+}
+
+export interface IOrderSubmit extends IOrder{
   items: string[];
   total: number;
 }
@@ -21,9 +24,9 @@ export interface IAppStatus {
   getCatalog(): IProductItem[];
   getBasket(): IProductItem[];
   getOrder(): IOrder;
+  getPaidItems(): IProductItem[];
 
   setCatalog(items: IProductItem[]): void;
-  prepareOrder(): IOrder;
   hasNoItems(): boolean;
   hasOnlyFreeItems(): boolean;
   setOrderFormField<K extends keyof IOrder>(field: K, value: IOrder[K]): void;
@@ -31,4 +34,5 @@ export interface IAppStatus {
   delFromBasket(id: string): void;
   clearBasket(): void;
   getTotal(): number;
+  validateOrder(form: 'payment' | 'contacts'): {isValid: boolean, errors: string};
 }

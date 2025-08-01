@@ -4,11 +4,16 @@ import { EventEmitter } from './components/base/events';
 import { AppStatus } from './components/AppStatus';
 import { Basket } from './components/common/Basket';
 import { Card } from './components/common/Card';
-import { OrderForm } from './components/common/OrderForm';
 import { Page } from './components/Page';
 import { ensureElement, cloneTemplate, ensureAllElements } from './utils/utils';
 import { API_URL} from './utils/constants';
 import { IProductItem, IOrder } from './types';
+import { IOrderSubmit } from './types';
+import { BasketItem } from './components/common/BasketItem';
+import { Success } from './components/common/Success';
+import { PaymentForm } from './components/common/PaymentForm';
+import { ContactsForm } from './components/common/ContactsForm';
+import { OrderForm } from './components/common/OrderForm';
 
 const catalogTemplate = ensureElement<HTMLTemplateElement>('#card-catalog');
 const cardTemplate = ensureElement<HTMLTemplateElement>('#card-preview');
@@ -23,6 +28,9 @@ const appData = new AppStatus(events);
 
 const page = new Page(document.body, events);
 const basket = new Basket(cloneTemplate(basketTemplate), events);
+const success = new Success(cloneTemplate(successTemplate), events);
+const paymentForm = new PaymentForm(cloneTemplate(orderTemplate), events);
+const contactsForm = new ContactsForm(cloneTemplate(contactsTemplate), events);
 
 //               !!!!!!!ПРЕЗЕНТЕРЫ!!!!!!!
 // ПРЕЗЕНТЕР КАТАЛОГА
@@ -50,6 +58,7 @@ const catalogPresenter = () => {
       onClick: () => {
         if (inBasketBoolean) {
           events.emit('basket:remove', {id: item.id});
+          events.emit('modal:close');
         } else {
         events.emit('basket:add', item);
         }
@@ -72,7 +81,16 @@ const catalogPresenter = () => {
 const basketPresenter = () => {
   events.on('basket:changed', () => {
     const basketItems = appData.getBasket();
-    basket.items = basketItems;
+    const items = basketItems.map((item, index) => {
+      const basketItem = new BasketItem(cloneTemplate('#card-basket'), events);
+      return basketItem.render({
+        index: index + 1,
+        title: item.title,
+        price: item.price,
+        id: item.id
+      })
+    });
+    basket.items = items;
     basket.total = appData.getTotal();
     basket.isEmpty = appData.hasNoItems();
     basket.hasOnlyFreeItems = appData.hasOnlyFreeItems();
@@ -87,7 +105,6 @@ const basketPresenter = () => {
 
   events.on('basket:remove', (data: {id: string}) => {
     appData.delFromBasket(data.id);
-    events.emit('modal:close');
   });
 
   events.on('basket:open', () => {
@@ -98,140 +115,71 @@ const basketPresenter = () => {
 // ПРЕЗЕНТЕР ЗАКАЗА 
 
 const orderPresenter = () => {
-  let currentForm: OrderForm;
-  let paymentForm: OrderForm;
-  let contactsForm: OrderForm;
-  
+  let currentForm: OrderForm = paymentForm;
   events.on('order:open', () => {
-    if (!paymentForm) {
-      const paymentElement = cloneTemplate(orderTemplate);
-      paymentForm = new OrderForm(paymentElement, events, 'payment');
-    }
     const orderData = appData.getOrder();
+    const validation = appData.validateOrder('payment');
     currentForm = paymentForm;
-    currentForm.payment = 'card';
-    currentForm.address = orderData.address || '';
-    currentForm.isValid = false;
-    currentForm.errors = '';
-
-    currentForm.container.addEventListener('submit', (evt) => {
-      evt.preventDefault();
-      events.emit('paymentForm:submit');
-    });
-
-    paymentForm.container.addEventListener('input', (event: Event) => {
-      const target = event.target as HTMLInputElement;
-      if (target.name === 'address') {
-        events.emit('order.address:change', {
-          field: 'address',
-          value: target.value
-        });
-      }
-    });
-  
-    const paymentBtn = ensureAllElements<HTMLButtonElement>('.button_alt', paymentForm.container);
-    paymentBtn.forEach(btn => {
-      btn.addEventListener('click', (event: MouseEvent) => {
-        const target = event.target as HTMLButtonElement;
-        if (target.name === 'card' || target.name === 'cash') {
-          events.emit('order.payment:changed', {
-            field: 'payment', 
-            value: target.name as 'card' || 'cash' 
-          });
-        }  
-      });
-    });
-
-    validOrder();
-    events.emit('modal:open', currentForm.container);
+    paymentForm.render({
+      payment: orderData.payment || 'card',
+      address: orderData.address || '',
+      isValid: validation.isValid,
+      errors: validation.errors
+    })
+    events.emit('modal:open', paymentForm.container);
   });
 
   events.on('paymentForm:submit', () => {
-    const contactsElement = cloneTemplate(contactsTemplate);
-    contactsForm = new OrderForm(contactsElement, events, 'contacts');
     const orderData = appData.getOrder();
+    const validation = appData.validateOrder('contacts');
     currentForm = contactsForm;
-    currentForm.email = orderData.email || '';
-    currentForm.phone = orderData.phone || '';
-    currentForm.isValid = false;
-    currentForm.errors = '';
-
-    currentForm.container.addEventListener('submit', (evt) => {
-      evt.preventDefault();
-      events.emit('order:submit');
-    });
-
-    contactsForm.container.addEventListener('input', (event: Event) => {
-      const target = event.target as HTMLInputElement;
-      if (target.name === 'email') {
-        events.emit('order.email:change', {
-          field: 'email',
-          value: target.value
-        });
-      } else if (target.name === 'phone') {
-        events.emit('order.phone:change', {
-          field: 'phone', 
-          value: target.value
-        });
-      }
-    });
-
-    validOrder();
-    events.emit('modal:open', currentForm.container);
+    contactsForm.render({
+      email: orderData.email || '',
+      phone: orderData.phone || '',
+      isValid: validation.isValid,
+      errors: validation.errors
+    })
+    events.emit('modal:open', contactsForm.container);
   })
 
   events.on('order:submit', () => {
-    const total = appData.getOrder().total;
-    currentForm = contactsForm;
-    api.post('/order', appData.getOrder())
-      .then(() => {
+    const readyOrder: IOrderSubmit = {
+      ...appData.getOrder(),
+      items: appData.getPaidItems().map(item => item.id),
+      total: appData.getTotal()
+    };
+    api.post('/order', readyOrder)
+      .then((res) => {
         appData.clearBasket();
-        const successContent = cloneTemplate(successTemplate);
-        const description = ensureElement<HTMLElement>('.order-success__description', successContent);
-        const returnBtn = ensureElement<HTMLButtonElement>('.order-success__close', successContent);
-
-        description.textContent = `Списано ${total} синапсов`;
-
-        returnBtn.addEventListener('click', () => {
-          events.emit('modal:close');
-        });
+        success.total = (res as {total: number}).total;
             
-        events.emit('modal:open', successContent);
+        events.emit('modal:open', success.container);
       })
       .catch(error => {
-        currentForm.errors = error.message;
+        contactsForm.errors = error.message;
       });
   });
 
-
-  const validOrder = () => {
-    if (currentForm === paymentForm) {
-      const addressValid = Boolean(appData.getOrder().address);
-      currentForm.isValid =  addressValid;
-      if (!addressValid) {
-        currentForm.errors = 'Необходимо указать адрес';
-      } else {
-        currentForm.errors = '';
-      }
-    } else {
-      const emailValid = Boolean(appData.getOrder().email);
-      const phoneValid = Boolean(appData.getOrder().phone);
-      currentForm.isValid = emailValid && phoneValid;
-      if (!emailValid && !phoneValid) {
-        currentForm.errors = 'Необходимо указать email и телефон';
-      } else if (!emailValid) {
-        currentForm.errors = 'Необходимо указать email';
-      } else if (!phoneValid) {
-        currentForm.errors = 'Необходимо указать телефон';
-      } else {
-        currentForm.errors = '';
-      }
-    }
-  }
-
   events.on(/^order\..*change/, (data: {field: keyof IOrder, value: string}) => {
     appData.setOrderFormField(data.field, data.value);
-    validOrder();
+    const orderData = appData.getOrder();
+    if (currentForm === paymentForm) {
+      const validation = appData.validateOrder('payment');
+      paymentForm.render({
+        payment: orderData.payment,
+        address: orderData.address,
+        isValid: validation.isValid,
+        errors: validation.errors
+      })
+    } else if (currentForm === contactsForm) {
+      const validation = appData.validateOrder('contacts');
+      contactsForm.render({
+        email: orderData.email,
+        phone: orderData.phone,
+        isValid: validation.isValid,
+        errors: validation.errors
+      })
+    }
   });
 }
 
@@ -261,7 +209,6 @@ const initApp = () => {
   api.get('/product')
     .then((data: {items: IProductItem[]}) => {
       appData.setCatalog(data.items);
-      events.emit('catalog:changed', data.items);
     })
     .catch(error => {
       console.error('Ошибка: не удалось загрузить каталог', error)
