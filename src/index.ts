@@ -5,7 +5,7 @@ import { AppStatus } from './components/AppStatus';
 import { Basket } from './components/common/Basket';
 import { Card } from './components/common/Card';
 import { Page } from './components/Page';
-import { ensureElement, cloneTemplate, ensureAllElements } from './utils/utils';
+import { ensureElement, cloneTemplate} from './utils/utils';
 import { API_URL} from './utils/constants';
 import { IProductItem, IOrder } from './types';
 import { IOrderSubmit } from './types';
